@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Talent research and document generation pipeline for O1DMatch",
   "scripts": {
-    "dev": "npx trigger.dev@latest dev",
-    "deploy": "npx trigger.dev@latest deploy",
+    "dev": "trigger.dev dev",
+    "deploy": "trigger.dev deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@trigger.dev/build": "4.4.3",
     "@types/node": "^22.10.0",
+    "trigger.dev": "4.4.3",
     "typescript": "^5.7.0"
   }
 }
