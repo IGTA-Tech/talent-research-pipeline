@@ -16,6 +16,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "trigger.config.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", ".trigger"]
 }

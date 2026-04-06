@@ -10,17 +10,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trigger.dev/sdk": "^3.3.14",
     "@anthropic-ai/sdk": "^0.32.1",
     "@supabase/supabase-js": "^2.49.4",
-    "openai": "^4.77.0",
+    "@trigger.dev/sdk": "4.4.3",
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "googleapis": "^144.0.0",
+    "openai": "^4.77.0",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
-    "@trigger.dev/build": "^3.3.14",
+    "@trigger.dev/build": "4.4.3",
     "@types/node": "^22.10.0",
     "typescript": "^5.7.0"
   }
