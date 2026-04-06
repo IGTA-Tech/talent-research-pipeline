@@ -1,0 +1,27 @@
+{
+  "name": "talent-research-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Talent research and document generation pipeline for O1DMatch",
+  "scripts": {
+    "dev": "npx trigger.dev@latest dev",
+    "deploy": "npx trigger.dev@latest deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trigger.dev/sdk": "^3.3.14",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "openai": "^4.77.0",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "googleapis": "^144.0.0",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@trigger.dev/build": "^3.3.14",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

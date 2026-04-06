@@ -1,0 +1,123 @@
+// ============================================================
+// Column Mapping — Normalize different sheet formats
+// ============================================================
+
+import type { CandidateRow } from "../types.js";
+
+export interface ColumnMap {
+  name: number | null;
+  firstName: number | null;
+  lastName: number | null;
+  email: number | null;
+  linkedInUrl: number | null;
+  profession: number | null;
+  field: number | null;
+  industry: number | null;
+  phone: number | null;
+  country: number | null;
+  score: number | null;
+}
+
+/**
+ * Build a column index map from headers.
+ * Uses fuzzy matching to handle variations in column names.
+ */
+export function getColumnMap(
+  sheetSource: "list1" | "list2" | "list3",
+  headers: string[]
+): ColumnMap {
+  // Build header lookup (index by lowercase header name)
+  const findCol = (...names: string[]): number | null => {
+    for (const name of names) {
+      const idx = headers.findIndex((h) =>
+        h.includes(name.toLowerCase())
+      );
+      if (idx !== -1) return idx;
+    }
+    return null;
+  };
+
+  return {
+    name: findCol("full name", "name", "candidate name", "beneficiary"),
+    firstName: findCol("first name", "first_name", "firstname"),
+    lastName: findCol("last name", "last_name", "lastname"),
+    email: findCol("email", "e-mail", "email address"),
+    linkedInUrl: findCol("linkedin", "linked in", "linkedin url", "profile url", "link"),
+    profession: findCol("profession", "title", "job title", "role", "occupation", "position"),
+    field: findCol("field", "specialty", "specialization", "area"),
+    industry: findCol("industry", "sector", "domain"),
+    phone: findCol("phone", "telephone", "mobile"),
+    country: findCol("country", "nationality", "location", "origin"),
+    score: findCol("score", "evaluation", "rating", "percentage", "result"),
+  };
+}
+
+/**
+ * Normalize a spreadsheet row into a CandidateRow.
+ * Returns null if the row lacks minimum required data (name).
+ */
+export function normalizeRow(
+  row: string[],
+  headers: string[],
+  columnMap: ColumnMap,
+  sheetSource: "list1" | "list2" | "list3",
+  rowIndex: number
+): CandidateRow | null {
+  const get = (idx: number | null): string => {
+    if (idx === null || idx >= row.length) return "";
+    return (row[idx] || "").trim();
+  };
+
+  // Get name — try full name first, then first + last
+  let name = get(columnMap.name);
+  if (!name) {
+    const first = get(columnMap.firstName);
+    const last = get(columnMap.lastName);
+    name = [first, last].filter(Boolean).join(" ");
+  }
+
+  if (!name) return null; // Name is required
+
+  // Get email
+  const email = get(columnMap.email);
+  // Validate email format
+  const validEmail = email && email.includes("@") ? email : undefined;
+
+  // Get LinkedIn URL
+  let linkedInUrl = get(columnMap.linkedInUrl);
+  // Normalize LinkedIn URLs
+  if (linkedInUrl && !linkedInUrl.startsWith("http")) {
+    if (linkedInUrl.includes("linkedin.com")) {
+      linkedInUrl = `https://${linkedInUrl}`;
+    } else {
+      linkedInUrl = ""; // Not a valid LinkedIn URL
+    }
+  }
+
+  // Get score (for list3 filtering)
+  const scoreStr = get(columnMap.score);
+  let existingScore: number | undefined;
+  if (scoreStr) {
+    const parsed = parseFloat(scoreStr.replace("%", "").replace("/100", ""));
+    if (!isNaN(parsed)) existingScore = parsed;
+  }
+
+  // For list3, skip candidates with score <= 35%
+  if (sheetSource === "list3" && existingScore !== undefined && existingScore <= 35) {
+    return null;
+  }
+
+  return {
+    sheetSource,
+    rowIndex,
+    name,
+    email: validEmail,
+    linkedInUrl: linkedInUrl || undefined,
+    profession: get(columnMap.profession) || undefined,
+    field: get(columnMap.field) || undefined,
+    industry: get(columnMap.industry) || undefined,
+    phone: get(columnMap.phone) || undefined,
+    country: get(columnMap.country) || undefined,
+    existingScore,
+  };
+}
