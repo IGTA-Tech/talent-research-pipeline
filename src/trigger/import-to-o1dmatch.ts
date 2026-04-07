@@ -73,12 +73,14 @@ export const importToO1DMatch = task({
           .single();
 
         if (existingTalent) {
-          logger.info(`Skipping ${candidate.name} — already in O1DMatch`);
+          logger.info(`Skipping ${candidate.name} — already has talent profile in O1DMatch`);
           skipped++;
           continue;
         }
 
-        // Also check auth.users
+        // Check if auth user already exists (from a previous failed run)
+        let userId: string;
+
         const { data: existingAuth } = await supabase
           .from("profiles")
           .select("id")
@@ -86,30 +88,39 @@ export const importToO1DMatch = task({
           .single();
 
         if (existingAuth) {
-          logger.info(`Skipping ${candidate.name} — auth user exists`);
-          skipped++;
-          continue;
-        }
+          // Auth user exists but no talent_profile — reuse the user ID
+          userId = existingAuth.id;
+          logger.info(`Auth user exists for ${candidate.name} — creating missing talent profile`);
+        } else {
+          // Create new auth user
+          const tempPassword = `Temp${Date.now()}!${Math.random().toString(36).slice(2, 8)}`;
+          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+            user_metadata: { role: "talent", full_name: candidate.name },
+          });
 
-        // 1. Create auth user
-        const tempPassword = `Temp${Date.now()}!${Math.random().toString(36).slice(2, 8)}`;
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email,
-          password: tempPassword,
-          email_confirm: true,
-          user_metadata: { role: "talent", full_name: candidate.name },
-        });
-
-        if (authError) {
-          if (authError.message?.includes("already been registered")) {
-            logger.info(`Skipping ${candidate.name} — auth user already registered`);
-            skipped++;
-            continue;
+          if (authError) {
+            if (authError.message?.includes("already been registered")) {
+              // Auth exists but not in profiles table — look up by email in auth
+              const { data: { users } } = await supabase.auth.admin.listUsers();
+              const existingUser = users?.find((u) => u.email === email);
+              if (existingUser) {
+                userId = existingUser.id;
+                logger.info(`Found existing auth user for ${candidate.name} via auth lookup`);
+              } else {
+                throw new Error(`Auth user registered but can't find ID for ${email}`);
+              }
+            } else {
+              throw new Error(`Auth creation failed: ${authError.message}`);
+            }
+          } else {
+            userId = authData.user.id;
           }
-          throw new Error(`Auth creation failed: ${authError.message}`);
-        }
 
-        const userId = authData.user.id;
+          logger.info(`Auth user for ${candidate.name}: ${userId}`);
+        }
         logger.info(`Created auth user for ${candidate.name}: ${userId}`);
 
         // 2. Create or update profiles row directly
