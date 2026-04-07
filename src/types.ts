@@ -15,6 +15,7 @@ export interface CandidateRow {
   phone?: string;
   country?: string;
   existingScore?: number;
+  researchStatus?: string;
   // Additional columns depending on sheet
   [key: string]: unknown;
 }

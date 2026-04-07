@@ -16,6 +16,7 @@ export interface ColumnMap {
   phone: number | null;
   country: number | null;
   score: number | null;
+  researchStatus: number | null;
 }
 
 /**
@@ -49,6 +50,7 @@ export function getColumnMap(
     phone: findCol("phone", "telephone", "mobile"),
     country: findCol("country", "nationality", "location", "origin"),
     score: findCol("score", "evaluation", "rating", "percentage", "result"),
+    researchStatus: findCol("research status", "research_status", "status"),
   };
 }
 
@@ -112,7 +114,8 @@ export function normalizeRow(
     phone: get(columnMap.phone) || undefined,
     country: get(columnMap.country) || undefined,
     existingScore,
-  };
+    researchStatus: get(columnMap.researchStatus) || undefined,
+  } as CandidateRow;
 }
 
 /**
