@@ -97,7 +97,7 @@ export const RATE_LIMITS = {
 // ─── Pipeline Settings ───
 export const PIPELINE = {
   maxUrlsToFetch: 40,
-  maxUrlsToArchive: 5,
+  maxUrlsToArchive: 7,
   maxContentLength: 10000,
   candidateConcurrency: 5,
   batchSize: 50,
