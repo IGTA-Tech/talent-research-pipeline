@@ -18,6 +18,31 @@ function getSupabase() {
 }
 
 const BUCKET = "talent-documents";
+let bucketEnsured = false;
+
+/**
+ * Ensure the storage bucket exists, create if not
+ */
+async function ensureBucket() {
+  if (bucketEnsured) return;
+  const supabase = getSupabase();
+
+  const { data: buckets } = await supabase.storage.listBuckets();
+  const exists = buckets?.some((b) => b.name === BUCKET);
+
+  if (!exists) {
+    console.log(`[Storage] Creating bucket: ${BUCKET}`);
+    const { error } = await supabase.storage.createBucket(BUCKET, {
+      public: true,
+      fileSizeLimit: 50 * 1024 * 1024, // 50MB
+    });
+    if (error && !error.message.includes("already exists")) {
+      console.error(`[Storage] Failed to create bucket: ${error.message}`);
+    }
+  }
+
+  bucketEnsured = true;
+}
 
 /**
  * Upload a PDF buffer to Supabase Storage.
@@ -28,6 +53,7 @@ export async function uploadPdf(
   fileName: string,
   candidateIdentifier: string
 ): Promise<UploadResult> {
+  await ensureBucket();
   const supabase = getSupabase();
 
   // Create a safe path from candidate name
@@ -40,6 +66,8 @@ export async function uploadPdf(
   const timestamp = Date.now();
   const path = `pipeline/${safeId}/${timestamp}-${fileName}`;
 
+  console.log(`[Storage] Uploading ${fileName} (${(pdfBuffer.length / 1024).toFixed(1)} KB) to ${BUCKET}/${path}`);
+
   // Upload to Supabase Storage
   const { data, error } = await supabase.storage
     .from(BUCKET)
@@ -49,11 +77,14 @@ export async function uploadPdf(
     });
 
   if (error) {
-    throw new Error(`Upload failed: ${error.message}`);
+    console.error(`[Storage] Upload error: ${error.message}`, { bucket: BUCKET, path, bufferSize: pdfBuffer.length });
+    throw new Error(`Upload failed for ${fileName}: ${error.message}`);
   }
 
   // Get public URL
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+  console.log(`[Storage] Upload success: ${urlData.publicUrl}`);
 
   return {
     fileUrl: urlData.publicUrl,
