@@ -31,16 +31,17 @@ export const batchResearch = task({
       candidates = await fetchSheetData(sheetSource);
     }
 
-    // Apply filters — require name + LinkedIn to avoid identity confusion
+    // Apply filters — require name + email + LinkedIn
     const beforeFilter = candidates.length;
     candidates = candidates.filter((c) => {
       if (!c.name || !c.name.trim()) return false;
+      if (!c.email || !c.email.includes("@")) return false;
       if (!c.linkedInUrl || !c.linkedInUrl.includes("linkedin.com")) return false;
       return true;
     });
     const skipped = beforeFilter - candidates.length;
     if (skipped > 0) {
-      logger.warn(`Skipped ${skipped} candidates without name or LinkedIn URL`);
+      logger.warn(`Skipped ${skipped} candidates without name, email, or LinkedIn URL`);
     }
 
     // Apply start index
