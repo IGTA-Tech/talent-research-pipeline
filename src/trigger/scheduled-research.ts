@@ -41,7 +41,10 @@ export const scheduledResearch = schedules.task({
       const allCandidates = candidates.filter((c) => c.name && c.name.trim().length > 0);
       const withLinkedIn = allCandidates.filter((c) => c.linkedInUrl && c.linkedInUrl.includes("linkedin.com"));
       const skippedNoLinkedIn = allCandidates.length - withLinkedIn.length;
-      candidates = withLinkedIn.filter((c) => c.researchStatus !== "completed");
+      candidates = withLinkedIn.filter((c) =>
+        !c.researchStatus ||
+        (!c.researchStatus.startsWith("completed") && !c.researchStatus.startsWith("skipped"))
+      );
 
       if (skippedNoLinkedIn > 0) {
         logger.warn(`${sheetSource}: Skipped ${skippedNoLinkedIn} candidates without LinkedIn URL`);

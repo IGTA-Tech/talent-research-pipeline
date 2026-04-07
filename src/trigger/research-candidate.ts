@@ -21,9 +21,11 @@ import { extractProfile } from "../research/profile-extractor.js";
 import { generateProfileSummary } from "../documents/profile-generator.js";
 import { generateEvidenceMapping } from "../documents/evidence-generator.js";
 import { buildPdf } from "../documents/pdf-builder.js";
-import { uploadCandidatePdfs } from "../storage/supabase.js";
+import { uploadCandidatePdfs, getAdminClient } from "../storage/supabase.js";
 import { updateSheetRow } from "../sheets/writer.js";
 import { sleep } from "../research/ai-client.js";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "../config.js";
+import { createClient } from "@supabase/supabase-js";
 
 export const researchCandidate = task({
   id: "research-candidate",
@@ -40,6 +42,40 @@ export const researchCandidate = task({
       profession: candidate.profession,
       linkedIn: candidate.linkedInUrl,
     });
+
+    // ═══════════════════════════════════════════
+    // CHECK: Already processed in O1DMatch?
+    // ═══════════════════════════════════════════
+    if (candidate.email) {
+      const supabase = createClient(SUPABASE_URL(), SUPABASE_SERVICE_ROLE_KEY(), {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      const { data: existingProfile } = await supabase
+        .from("talent_profiles")
+        .select("id, first_name, last_name")
+        .eq("email", candidate.email.toLowerCase())
+        .single();
+
+      if (existingProfile) {
+        logger.info(`Skipping ${candidateName} — already exists in O1DMatch as ${existingProfile.first_name} ${existingProfile.last_name}`);
+        // Mark as completed in sheet so schedule doesn't retry
+        try {
+          await updateSheetRow(sheetSource, candidate.rowIndex, {
+            "Research Status": "completed",
+            "Research Date": new Date().toISOString().split("T")[0],
+          });
+        } catch {}
+        return {
+          candidateName,
+          email: candidate.email,
+          sheetSource,
+          rowIndex: candidate.rowIndex,
+          skipped: true,
+          skipReason: "Already exists in O1DMatch",
+        };
+      }
+    }
 
     // ─── Build CandidateInfo ───
     const candidateInfo: CandidateInfo = {
@@ -65,7 +101,13 @@ export const researchCandidate = task({
           reason: verification.reason,
         });
 
-        // Skip this candidate — wrong person
+        // Skip this candidate — wrong person. Write to sheet so it's visible.
+        try {
+          await updateSheetRow(sheetSource, candidate.rowIndex, {
+            "Research Status": "skipped - identity mismatch",
+            "Research Date": new Date().toISOString().split("T")[0],
+          });
+        } catch {}
         return {
           candidateName,
           email: candidate.email,
@@ -238,6 +280,124 @@ export const researchCandidate = task({
       evidencePdf.buffer
     );
 
+    // ═══════════════════════════════════════════
+    // PHASE 9: Create Talent Profile in O1DMatch
+    // ═══════════════════════════════════════════
+    let o1dmatchProfileId: string | null = null;
+    if (candidate.email) {
+      try {
+        logger.info("Creating talent profile in O1DMatch...");
+        const supabase = createClient(SUPABASE_URL(), SUPABASE_SERVICE_ROLE_KEY(), {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+
+        // 1. Create auth user
+        const tempPassword = `Temp${Date.now()}!${Math.random().toString(36).slice(2, 8)}`;
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: candidate.email.toLowerCase(),
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { role: "talent", full_name: candidateName },
+        });
+
+        if (authError) {
+          if (authError.message?.includes("already been registered")) {
+            logger.info("Auth user already exists — skipping profile creation");
+          } else {
+            throw authError;
+          }
+        } else {
+          const userId = authData.user.id;
+
+          // 2. Wait for trigger to create profiles row
+          await sleep(500);
+
+          // 3. Update profiles row
+          await supabase
+            .from("profiles")
+            .update({ full_name: candidateName, role: "talent" })
+            .eq("id", userId);
+
+          // 4. Create talent_profiles
+          const nameParts = candidateName.split(" ");
+          const firstName = nameParts[0] || candidateName;
+          const lastName = nameParts.slice(1).join(" ") || "";
+
+          const { data: talentProfile, error: talentError } = await supabase
+            .from("talent_profiles")
+            .insert({
+              user_id: userId,
+              first_name: firstName,
+              last_name: lastName,
+              email: candidate.email.toLowerCase(),
+              phone: candidate.phone || null,
+              professional_headline: structuredProfile.professionalHeadline || candidate.profession || null,
+              current_job_title: structuredProfile.currentJobTitle || null,
+              current_employer: structuredProfile.currentEmployer || null,
+              industry: structuredProfile.industry || candidate.industry || candidate.field || null,
+              years_experience: structuredProfile.yearsExperience || null,
+              skills: structuredProfile.skills || [],
+              education: structuredProfile.education || null,
+              university: structuredProfile.university || null,
+              field_of_study: structuredProfile.fieldOfStudy || null,
+              linkedin_url: candidate.linkedInUrl || null,
+              city: structuredProfile.city || null,
+              state: structuredProfile.state || null,
+              country: structuredProfile.country || candidate.country || "USA",
+              publications_count: structuredProfile.publicationsCount || 0,
+              h_index: structuredProfile.hIndex || 0,
+              citations_count: structuredProfile.citationsCount || 0,
+              patents_count: structuredProfile.patents || 0,
+              o1_score: candidate.existingScore || 0,
+              is_public: true,
+              profile_source: sheetSource === "list3" ? "list3_import" : "toptal_import",
+              awaiting_claim: true,
+              talent_category: "o1_candidate",
+            })
+            .select("id")
+            .single();
+
+          if (talentError) {
+            logger.error(`Talent profile creation failed: ${talentError.message}`);
+          } else {
+            o1dmatchProfileId = talentProfile?.id || null;
+
+            // 5. Create talent_documents entries for the PDFs
+            if (o1dmatchProfileId) {
+              await supabase.from("talent_documents").insert([
+                {
+                  talent_id: o1dmatchProfileId,
+                  title: `${candidateName} - Profile Summary`,
+                  description: "AI-generated comprehensive talent profile based on online research",
+                  file_url: uploads.profileUpload.fileUrl,
+                  file_name: uploads.profileUpload.fileName,
+                  file_type: "application/pdf",
+                  file_size: uploads.profileUpload.fileSize,
+                  status: "pending",
+                },
+                {
+                  talent_id: o1dmatchProfileId,
+                  title: `${candidateName} - O-1 Evidence Mapping`,
+                  description: "AI-generated evidence mapping to O-1 visa criteria",
+                  file_url: uploads.evidenceUpload.fileUrl,
+                  file_name: uploads.evidenceUpload.fileName,
+                  file_type: "application/pdf",
+                  file_size: uploads.evidenceUpload.fileSize,
+                  status: "pending",
+                },
+              ]);
+
+              logger.info(`✅ Talent profile created in O1DMatch: ${o1dmatchProfileId}`);
+            }
+          }
+        }
+      } catch (error: any) {
+        logger.error(`O1DMatch import failed (non-fatal): ${error.message}`);
+      }
+    } else {
+      logger.warn(`No email for ${candidateName} — skipping O1DMatch profile creation`);
+    }
+
     // Update Google Sheet row
     try {
       await updateSheetRow(sheetSource, candidate.rowIndex, {
@@ -245,6 +405,7 @@ export const researchCandidate = task({
         "Evidence Doc URL": uploads.evidenceUpload.fileUrl,
         "Research Status": "completed",
         "Sources Found": String(allSources.length),
+        "O1DMatch Profile": o1dmatchProfileId ? "created" : "no email",
         "Research Date": new Date().toISOString().split("T")[0],
       });
       logger.info("Sheet row updated with doc URLs");
