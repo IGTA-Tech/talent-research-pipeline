@@ -83,16 +83,9 @@ export function normalizeRow(
   // Validate email format
   const validEmail = email && email.includes("@") ? email : undefined;
 
-  // Get LinkedIn URL
+  // Get LinkedIn URL — handle JSON arrays, multiple URLs, etc.
   let linkedInUrl = get(columnMap.linkedInUrl);
-  // Normalize LinkedIn URLs
-  if (linkedInUrl && !linkedInUrl.startsWith("http")) {
-    if (linkedInUrl.includes("linkedin.com")) {
-      linkedInUrl = `https://${linkedInUrl}`;
-    } else {
-      linkedInUrl = ""; // Not a valid LinkedIn URL
-    }
-  }
+  linkedInUrl = extractLinkedInUrl(linkedInUrl);
 
   // Get score (for list3 filtering)
   const scoreStr = get(columnMap.score);
@@ -120,4 +113,38 @@ export function normalizeRow(
     country: get(columnMap.country) || undefined,
     existingScore,
   };
+}
+
+/**
+ * Extract a clean LinkedIn URL from messy cell data.
+ * Handles: JSON arrays, comma-separated URLs, bare URLs, etc.
+ */
+function extractLinkedInUrl(raw: string): string {
+  if (!raw) return "";
+
+  // Try to parse as JSON array (e.g. ["url1","url2"])
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const linkedin = parsed.find((u: string) => typeof u === "string" && u.includes("linkedin.com"));
+      if (linkedin) return linkedin.trim();
+      // Return first URL if no LinkedIn found
+      return parsed[0]?.trim() || "";
+    }
+  } catch {
+    // Not JSON — continue
+  }
+
+  // Try to find LinkedIn URL in the text
+  const linkedinMatch = raw.match(/https?:\/\/[^\s,"'\]]*linkedin\.com[^\s,"'\]]*/i);
+  if (linkedinMatch) return linkedinMatch[0].trim();
+
+  // Try to find any URL
+  const urlMatch = raw.match(/https?:\/\/[^\s,"'\]]+/);
+  if (urlMatch) return urlMatch[0].trim();
+
+  // If it looks like a LinkedIn path without protocol
+  if (raw.includes("linkedin.com")) return `https://${raw.trim()}`;
+
+  return "";
 }
