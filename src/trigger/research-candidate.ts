@@ -309,31 +309,35 @@ export const researchCandidate = task({
         } else {
           const userId = authData.user.id;
 
-          // 2. Wait for trigger to create profiles row, retry if needed
-          let profileReady = false;
-          for (let attempt = 0; attempt < 5; attempt++) {
-            await sleep(1000);
-            const { data: checkProfile } = await supabase
-              .from("profiles")
-              .select("id")
-              .eq("id", userId)
-              .single();
-            if (checkProfile) {
-              profileReady = true;
-              break;
-            }
-            logger.info(`Waiting for profiles trigger... attempt ${attempt + 1}/5`);
-          }
-
-          if (!profileReady) {
-            throw new Error("profiles row not created by trigger after 5 seconds");
-          }
-
-          // 3. Update profiles row
-          await supabase
+          // 2. Create or update profiles row directly (don't rely on trigger)
+          await sleep(1000); // Brief wait for any trigger
+          const { data: existingProfile } = await supabase
             .from("profiles")
-            .update({ full_name: candidateName, role: "talent" })
-            .eq("id", userId);
+            .select("id")
+            .eq("id", userId)
+            .single();
+
+          if (existingProfile) {
+            // Trigger created it — just update
+            await supabase
+              .from("profiles")
+              .update({ full_name: candidateName, role: "talent", email: candidate.email!.toLowerCase() })
+              .eq("id", userId);
+          } else {
+            // Trigger didn't fire — create it ourselves
+            logger.info("Profiles trigger didn't fire — creating profiles row directly");
+            const { error: profileInsertError } = await supabase
+              .from("profiles")
+              .insert({
+                id: userId,
+                full_name: candidateName,
+                email: candidate.email!.toLowerCase(),
+                role: "talent",
+              });
+            if (profileInsertError) {
+              throw new Error(`Failed to create profiles row: ${profileInsertError.message}`);
+            }
+          }
 
           // 4. Create talent_profiles
           const nameParts = candidateName.split(" ");
