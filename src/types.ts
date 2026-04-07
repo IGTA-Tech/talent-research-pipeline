@@ -16,6 +16,8 @@ export interface CandidateRow {
   country?: string;
   existingScore?: number;
   researchStatus?: string;
+  profileDocUrl?: string;
+  evidenceDocUrl?: string;
   // Additional columns depending on sheet
   [key: string]: unknown;
 }

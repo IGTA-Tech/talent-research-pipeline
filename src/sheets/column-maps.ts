@@ -17,6 +17,8 @@ export interface ColumnMap {
   country: number | null;
   score: number | null;
   researchStatus: number | null;
+  profileDocUrl: number | null;
+  evidenceDocUrl: number | null;
 }
 
 /**
@@ -51,6 +53,8 @@ export function getColumnMap(
     country: findCol("country", "nationality", "location", "origin"),
     score: findCol("score", "evaluation", "rating", "percentage", "result"),
     researchStatus: findCol("research status", "research_status", "status"),
+    profileDocUrl: findCol("profile doc url", "profile_doc_url", "profile doc"),
+    evidenceDocUrl: findCol("evidence doc url", "evidence_doc_url", "evidence doc"),
   };
 }
 
@@ -114,6 +118,8 @@ export function normalizeRow(
     country: get(columnMap.country) || undefined,
     existingScore,
     researchStatus: get(columnMap.researchStatus) || undefined,
+    profileDocUrl: get(columnMap.profileDocUrl) || undefined,
+    evidenceDocUrl: get(columnMap.evidenceDocUrl) || undefined,
   } as CandidateRow;
 }
 
