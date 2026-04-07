@@ -13,6 +13,7 @@ import type {
 import { PIPELINE } from "../config.js";
 import { conductPerplexityResearch } from "../research/perplexity-research.js";
 import { lookupCandidate, lookupToDiscoveredSources, deduplicateSources } from "../research/ai-lookup.js";
+import { verifyLinkedInIdentity } from "../research/identity-verify.js";
 import { conductUrlResearch, urlResearchToSources } from "../research/url-research.js";
 import { fetchMultipleUrls, classifyUrlTier } from "../research/url-fetcher.js";
 import { archiveMultipleUrls } from "../research/archive-org.js";
@@ -49,6 +50,39 @@ export const researchCandidate = task({
       nationality: candidate.country,
       existingUrls: candidate.linkedInUrl ? [candidate.linkedInUrl] : [],
     };
+
+    // ═══════════════════════════════════════════
+    // PHASE 0: Verify LinkedIn identity
+    // ═══════════════════════════════════════════
+    if (candidate.linkedInUrl) {
+      logger.info("Phase 0: Verifying LinkedIn identity...");
+      const verification = await verifyLinkedInIdentity(candidate.linkedInUrl, candidateName);
+
+      if (!verification.match) {
+        logger.warn(`Identity mismatch for ${candidateName}`, {
+          linkedInName: verification.linkedInName,
+          sheetName: candidateName,
+          reason: verification.reason,
+        });
+
+        // Skip this candidate — wrong person
+        return {
+          candidateName,
+          email: candidate.email,
+          sheetSource,
+          rowIndex: candidate.rowIndex,
+          skipped: true,
+          skipReason: `LinkedIn name "${verification.linkedInName}" does not match sheet name "${candidateName}". ${verification.reason}`,
+        };
+      }
+
+      logger.info(`Identity verified: LinkedIn "${verification.linkedInName}" matches "${candidateName}"`);
+
+      // Use LinkedIn data to enrich candidate info
+      if (verification.headline) {
+        candidateInfo.profession = verification.headline;
+      }
+    }
 
     // ═══════════════════════════════════════════
     // PHASE 1: AI Lookup (Claude) — 10-15 URLs
