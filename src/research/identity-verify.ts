@@ -13,23 +13,40 @@ export interface VerificationResult {
 }
 
 /**
- * Fetch a LinkedIn profile page and verify the name matches.
- * Uses AI to fuzzy-match names (handles middle names, abbreviations, etc.)
+ * Verify LinkedIn profile matches the expected candidate.
+ *
+ * Strategy:
+ * 1. Try to fetch LinkedIn page and use AI to compare names
+ * 2. If LinkedIn blocks scraping (common), allow through —
+ *    the research phases use the LinkedIn URL directly and will
+ *    find the correct person's info from it
+ *
+ * We no longer block on slug-based matching because:
+ * - LinkedIn slugs are often abbreviated (fpadovani, lucastfa)
+ * - Slug matching caused too many false rejections
+ * - The research phases already anchor on the LinkedIn URL
  */
 export async function verifyLinkedInIdentity(
   linkedInUrl: string,
   expectedName: string
 ): Promise<VerificationResult> {
   try {
-    // Fetch the LinkedIn page content
+    // Try to fetch the LinkedIn page
     const fetched = await fetchUrl(linkedInUrl);
 
-    if (!fetched.success || fetched.content.length < 50) {
-      // LinkedIn blocks scraping — fall back to AI verification using the URL slug
-      return verifyFromUrlSlug(linkedInUrl, expectedName);
+    if (!fetched.success || fetched.content.length < 100) {
+      // LinkedIn blocked scraping — allow through
+      // The research phases will use the LinkedIn URL directly
+      console.log(`[Identity] LinkedIn blocked scraping for ${expectedName}, allowing through — research phases will use LinkedIn URL`);
+      return {
+        match: true,
+        linkedInName: null,
+        headline: null,
+        reason: "LinkedIn blocked scraping — research phases will verify via URL",
+      };
     }
 
-    // Use AI to extract the name from the page and compare
+    // We got content — use AI to verify the name
     const prompt = `I need to verify if a LinkedIn profile belongs to a specific person.
 
 EXPECTED NAME (from spreadsheet): "${expectedName}"
@@ -46,11 +63,13 @@ Consider these as MATCHES:
 - "Mohammad Ali" matches "Muhammad Ali" (common name variations)
 - "Bob Smith" matches "Robert Smith" (common nicknames)
 - First + last name match is sufficient even if middle differs
+- Partial names: "Swapnil" matches "Swapnil Manish"
 
 Consider these as NON-MATCHES:
-- Completely different first names (not nicknames)
-- Different last names
+- Completely different first AND last names
 - Different person entirely
+
+When in doubt, match. It's better to research and verify later than to skip a valid candidate.
 
 OUTPUT JSON:
 {
@@ -77,66 +96,13 @@ OUTPUT JSON:
       reason: result.reason || "AI verification",
     };
   } catch (error: any) {
-    console.warn(`[Identity] Verification failed, defaulting to URL slug check: ${error.message}`);
-    return verifyFromUrlSlug(linkedInUrl, expectedName);
-  }
-}
-
-/**
- * Fallback: verify identity from the LinkedIn URL slug.
- * E.g., linkedin.com/in/john-smith-123 → "john smith"
- */
-function verifyFromUrlSlug(
-  linkedInUrl: string,
-  expectedName: string
-): VerificationResult {
-  try {
-    const url = new URL(linkedInUrl);
-    const pathParts = url.pathname.split("/").filter(Boolean);
-
-    // LinkedIn URLs: /in/john-smith-123abc or /in/johnsmith
-    const slug = pathParts[pathParts.length - 1] || "";
-
-    // Remove trailing numbers/IDs (e.g., john-smith-123abc → john-smith)
-    const cleanSlug = slug.replace(/-[a-f0-9]{4,}$/, "").replace(/-\d+$/, "");
-
-    // Convert slug to name parts: john-smith → ["john", "smith"]
-    const slugParts = cleanSlug
-      .toLowerCase()
-      .split(/[-_]/)
-      .filter((p) => p.length > 1);
-
-    // Compare with expected name
-    const expectedParts = expectedName
-      .toLowerCase()
-      .replace(/[^a-z\s]/g, "")
-      .split(/\s+/)
-      .filter((p) => p.length > 1);
-
-    // Check if first name and last name appear in the slug
-    const firstName = expectedParts[0];
-    const lastName = expectedParts[expectedParts.length - 1];
-
-    const firstMatch = slugParts.some((p) => p.includes(firstName) || firstName.includes(p));
-    const lastMatch = slugParts.some((p) => p.includes(lastName) || lastName.includes(p));
-
-    const match = firstMatch && lastMatch;
-
-    return {
-      match,
-      linkedInName: slugParts.join(" "),
-      headline: null,
-      reason: match
-        ? `URL slug "${cleanSlug}" matches expected name "${expectedName}"`
-        : `URL slug "${cleanSlug}" does not match expected name "${expectedName}" (first: ${firstMatch}, last: ${lastMatch})`,
-    };
-  } catch {
-    // If all else fails, allow it through with a warning
+    // On any error, allow through
+    console.warn(`[Identity] Verification error for ${expectedName}: ${error.message} — allowing through`);
     return {
       match: true,
       linkedInName: null,
       headline: null,
-      reason: "Could not verify — allowing through",
+      reason: `Verification error — allowing through: ${error.message}`,
     };
   }
 }
