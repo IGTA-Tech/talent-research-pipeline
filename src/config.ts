@@ -26,8 +26,36 @@ export const SUPABASE_URL = () => requireEnv("SUPABASE_URL");
 export const SUPABASE_SERVICE_ROLE_KEY = () => requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 // ─── Google Sheets ───
-export const GOOGLE_SERVICE_ACCOUNT_EMAIL = () => optionalEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-export const GOOGLE_PRIVATE_KEY = () => optionalEnv("GOOGLE_PRIVATE_KEY").replace(/\\n/g, "\n");
+// Supports either individual vars OR a single JSON/base64 JSON var
+export const GOOGLE_SERVICE_ACCOUNT_EMAIL = (): string => {
+  const direct = optionalEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+  if (direct) return direct;
+  const json = parseServiceAccountJson();
+  return json?.client_email || "";
+};
+
+export const GOOGLE_PRIVATE_KEY = (): string => {
+  const direct = optionalEnv("GOOGLE_PRIVATE_KEY");
+  if (direct) return direct.replace(/\\n/g, "\n");
+  const json = parseServiceAccountJson();
+  return json?.private_key?.replace(/\\n/g, "\n") || "";
+};
+
+function parseServiceAccountJson(): { client_email?: string; private_key?: string } | null {
+  const raw = optionalEnv("GOOGLE_SERVICE_ACCOUNT_JSON");
+  if (!raw) return null;
+  try {
+    // Try direct JSON parse first
+    return JSON.parse(raw);
+  } catch {
+    try {
+      // Try base64 decode
+      return JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+    } catch {
+      return null;
+    }
+  }
+}
 
 // ─── Import Auth ───
 export const IMPORT_SECRET_KEY = () => optionalEnv("IMPORT_SECRET_KEY", "o1dmatch-import-2026");
