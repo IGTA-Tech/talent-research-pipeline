@@ -81,7 +81,8 @@ IMPORTANT RULES:
   try {
     const response = await callAI(prompt, {
       maxTokens: 8192,
-      temperature: 0.1, // Low temp for factual extraction
+      temperature: 0.1,
+      quality: "fast", // Extraction task — gpt-4o-mini is sufficient
     });
 
     const result = safeJsonParse<Partial<ExtractedProfile>>(response, {});

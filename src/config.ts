@@ -17,8 +17,8 @@ function optionalEnv(name: string, fallback: string = ""): string {
 }
 
 // ─── AI API Keys ───
-export const ANTHROPIC_API_KEY = () => requireEnv("ANTHROPIC_API_KEY");
-export const OPENAI_API_KEY = () => optionalEnv("OPENAI_API_KEY");
+export const ANTHROPIC_API_KEY = () => optionalEnv("ANTHROPIC_API_KEY"); // Optional now
+export const OPENAI_API_KEY = () => requireEnv("OPENAI_API_KEY"); // Primary AI provider
 export const PERPLEXITY_API_KEY = () => requireEnv("PERPLEXITY_API_KEY");
 
 // ─── Supabase (O1DMatch) ───

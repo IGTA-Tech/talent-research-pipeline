@@ -80,10 +80,9 @@ export function normalizeRow(
 
   if (!name) return null; // Name is required
 
-  // Get email
-  const email = get(columnMap.email);
-  // Validate email format
-  const validEmail = email && email.includes("@") ? email : undefined;
+  // Get email — handle multiple emails separated by / or , or ;
+  const rawEmail = get(columnMap.email);
+  const validEmail = extractFirstEmail(rawEmail);
 
   // Get LinkedIn URL — handle JSON arrays, multiple URLs, etc.
   let linkedInUrl = get(columnMap.linkedInUrl);
@@ -150,4 +149,24 @@ function extractLinkedInUrl(raw: string): string {
   if (raw.includes("linkedin.com")) return `https://${raw.trim()}`;
 
   return "";
+}
+
+/**
+ * Extract the first valid email from messy cell data.
+ * Handles: "email1/email2", "email1, email2", "email1; email2"
+ */
+function extractFirstEmail(raw: string): string | undefined {
+  if (!raw) return undefined;
+
+  // Split on common separators
+  const parts = raw.split(/[\/,;|]+/);
+
+  for (const part of parts) {
+    const trimmed = part.trim().toLowerCase();
+    if (trimmed.includes("@") && trimmed.includes(".")) {
+      return trimmed;
+    }
+  }
+
+  return undefined;
 }

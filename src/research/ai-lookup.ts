@@ -85,6 +85,7 @@ We want maximum coverage — we can filter later.`;
     const response = await callAI(prompt, {
       maxTokens: 4096,
       temperature: 0.2,
+      quality: "fast",
     });
 
     const result = safeJsonParse<Partial<LookupResult>>(response, {});

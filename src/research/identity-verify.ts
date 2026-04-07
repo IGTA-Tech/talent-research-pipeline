@@ -85,7 +85,7 @@ OUTPUT JSON:
       match?: boolean;
       reason?: string;
     }>(
-      await callAI(prompt, { maxTokens: 512, temperature: 0 }),
+      await callAI(prompt, { maxTokens: 512, temperature: 0, quality: "fast" }),
       {}
     );
 
