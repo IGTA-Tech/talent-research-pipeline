@@ -10,7 +10,7 @@ import { researchCandidate } from "./research-candidate.js";
 import type { CandidateRow } from "../types.js";
 
 // Track processed candidates across runs using metadata
-const BATCH_SIZE = 5; // Process 5 candidates per scheduled run
+const BATCH_SIZE = 20; // Process 20 candidates per scheduled run
 
 export const scheduledResearch = schedules.task({
   id: "scheduled-research",

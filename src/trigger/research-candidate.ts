@@ -27,7 +27,7 @@ import { sleep } from "../research/ai-client.js";
 
 export const researchCandidate = task({
   id: "research-candidate",
-  queue: { concurrencyLimit: 5 },
+  queue: { concurrencyLimit: 20 },
   machine: { preset: "medium-1x" },
   retry: { maxAttempts: 3 },
 
