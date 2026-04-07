@@ -37,11 +37,16 @@ export const scheduledResearch = schedules.task({
         continue;
       }
 
-      // Filter: must have a name, skip already completed
+      // Filter: must have name + LinkedIn URL, skip already completed
       const allCandidates = candidates.filter((c) => c.name && c.name.trim().length > 0);
-      candidates = allCandidates.filter((c) => c.researchStatus !== "completed");
+      const withLinkedIn = allCandidates.filter((c) => c.linkedInUrl && c.linkedInUrl.includes("linkedin.com"));
+      const skippedNoLinkedIn = allCandidates.length - withLinkedIn.length;
+      candidates = withLinkedIn.filter((c) => c.researchStatus !== "completed");
 
-      logger.info(`${sheetSource}: ${allCandidates.length} total, ${candidates.length} unprocessed`);
+      if (skippedNoLinkedIn > 0) {
+        logger.warn(`${sheetSource}: Skipped ${skippedNoLinkedIn} candidates without LinkedIn URL`);
+      }
+      logger.info(`${sheetSource}: ${allCandidates.length} total, ${withLinkedIn.length} with LinkedIn, ${candidates.length} unprocessed`);
 
       const remaining = BATCH_SIZE - totalTriggered;
       const batch = candidates.slice(0, remaining);

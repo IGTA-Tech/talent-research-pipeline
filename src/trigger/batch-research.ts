@@ -31,9 +31,17 @@ export const batchResearch = task({
       candidates = await fetchSheetData(sheetSource);
     }
 
-    // Apply filters
-    // Only process candidates that have at least a name
-    candidates = candidates.filter((c) => c.name && c.name.trim().length > 0);
+    // Apply filters — require name + LinkedIn to avoid identity confusion
+    const beforeFilter = candidates.length;
+    candidates = candidates.filter((c) => {
+      if (!c.name || !c.name.trim()) return false;
+      if (!c.linkedInUrl || !c.linkedInUrl.includes("linkedin.com")) return false;
+      return true;
+    });
+    const skipped = beforeFilter - candidates.length;
+    if (skipped > 0) {
+      logger.warn(`Skipped ${skipped} candidates without name or LinkedIn URL`);
+    }
 
     // Apply start index
     if (startIndex > 0) {
