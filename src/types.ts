@@ -18,6 +18,7 @@ export interface CandidateRow {
   researchStatus?: string;
   profileDocUrl?: string;
   evidenceDocUrl?: string;
+  o1dmatchProfile?: string;
   // Additional columns depending on sheet
   [key: string]: unknown;
 }

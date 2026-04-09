@@ -19,6 +19,7 @@ export interface ColumnMap {
   researchStatus: number | null;
   profileDocUrl: number | null;
   evidenceDocUrl: number | null;
+  o1dmatchProfile: number | null;
 }
 
 /**
@@ -58,6 +59,7 @@ export function getColumnMap(
     researchStatus: findCol("research status", "research_status", "status"),
     profileDocUrl: findCol("profile doc url", "profile_doc_url", "profile doc"),
     evidenceDocUrl: findCol("evidence doc url", "evidence_doc_url", "evidence doc"),
+    o1dmatchProfile: findCol("o1dmatch profile", "o1dmatch_profile", "o1dmatch"),
   };
 }
 
@@ -120,6 +122,7 @@ export function normalizeRow(
     researchStatus: get(columnMap.researchStatus) || undefined,
     profileDocUrl: get(columnMap.profileDocUrl) || undefined,
     evidenceDocUrl: get(columnMap.evidenceDocUrl) || undefined,
+    o1dmatchProfile: get(columnMap.o1dmatchProfile) || undefined,
   } as CandidateRow;
 }
 
