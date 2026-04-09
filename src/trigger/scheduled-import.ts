@@ -97,13 +97,38 @@ export const scheduledImport = schedules.task({
 
             if (authError) {
               if (authError.message?.includes("already been registered")) {
-                // Find existing user
-                const { data: { users } } = await supabase.auth.admin.listUsers();
-                const found = users?.find((u) => u.email === email);
-                if (found) {
-                  userId = found.id;
-                } else {
-                  throw new Error(`Can't find auth user for ${email}`);
+                // Auth user exists but no profiles row — find via listUsers with filter
+                try {
+                  const { data: { users } } = await supabase.auth.admin.listUsers({
+                    page: 1,
+                    perPage: 1,
+                  });
+                  // listUsers doesn't filter by email, so search in auth.users table directly
+                  const { data: authRow } = await supabase
+                    .rpc("get_user_id_by_email", { user_email: email })
+                    .single();
+
+                  if ((authRow as any)?.id) {
+                    userId = (authRow as any).id;
+                    logger.info(`Found orphaned auth user for ${candidate.name}: ${userId}`);
+                  } else {
+                    // Can't find — skip this candidate for now
+                    throw new Error(`Auth user registered but can't find ID for ${email}`);
+                  }
+                } catch (lookupError: any) {
+                  // Last resort: query auth.users directly via service role
+                  const { data: directLookup } = await supabase
+                    .from("auth.users" as any)
+                    .select("id")
+                    .eq("email", email)
+                    .single();
+
+                  if ((directLookup as any)?.id) {
+                    userId = (directLookup as any).id;
+                    logger.info(`Found auth user via direct query for ${candidate.name}: ${userId}`);
+                  } else {
+                    throw new Error(`Auth user exists but can't resolve for ${email}`);
+                  }
                 }
               } else {
                 throw authError;
