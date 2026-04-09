@@ -32,9 +32,12 @@ export function getColumnMap(
   // Build header lookup (index by lowercase header name)
   const findCol = (...names: string[]): number | null => {
     for (const name of names) {
-      const idx = headers.findIndex((h) =>
-        h.includes(name.toLowerCase())
-      );
+      const idx = headers.findIndex((h) => {
+        // Match if header starts with or contains the search term
+        const lower = h.toLowerCase().trim();
+        const search = name.toLowerCase();
+        return lower === search || lower.startsWith(search) || lower.includes(search);
+      });
       if (idx !== -1) return idx;
     }
     return null;
@@ -100,10 +103,7 @@ export function normalizeRow(
     if (!isNaN(parsed)) existingScore = parsed;
   }
 
-  // For list3, skip candidates with score <= 35%
-  if (sheetSource === "list3" && existingScore !== undefined && existingScore <= 35) {
-    return null;
-  }
+  // Process all candidates regardless of score
 
   return {
     sheetSource,
