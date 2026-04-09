@@ -14,8 +14,8 @@ const BATCH_SIZE = 20; // Process 20 candidates per scheduled run
 
 export const scheduledResearch = schedules.task({
   id: "scheduled-research",
-  // Run every 15 minutes
-  cron: "*/15 * * * *",
+  // PAUSED — OpenAI credits exhausted again
+  cron: "0 0 31 2 *",
   queue: { concurrencyLimit: 1 },
 
   run: async () => {
