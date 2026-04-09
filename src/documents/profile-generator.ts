@@ -1,5 +1,5 @@
 // ============================================================
-// Talent Profile Summary Generator — 5-8 page comprehensive PDF
+// Talent Profile Summary Generator — Comprehensive PDF
 // ============================================================
 
 import { callAI } from "../research/ai-client.js";
@@ -14,22 +14,24 @@ export async function generateProfileSummary(
 ): Promise<GeneratedDocument> {
   const { candidateName, profileAnalysis, discoveredSources, fetchedContent, structuredProfile } = research;
 
-  // Build source evidence text from fetched content
+  // Build source evidence text from fetched content — use more content per source
   const topContent = fetchedContent
     .filter((f) => f.success && f.content.length > 100)
     .sort((a, b) => b.content.length - a.content.length)
-    .slice(0, 20)
-    .map((f) => `[${f.domain}] ${f.title}: ${f.content.substring(0, 1500)}`)
-    .join("\n\n");
+    .slice(0, 25)
+    .map((f) => `[${f.domain}] ${f.title}:\n${f.content.substring(0, 2500)}`)
+    .join("\n\n---\n\n");
 
   // Build source list
   const sourceList = discoveredSources
     .map((s) => `- [Tier ${s.tier}] ${s.sourceName}: ${s.url} — ${s.keyContent}`)
     .join("\n");
 
-  const prompt = `Generate a comprehensive TALENT PROFILE SUMMARY document for ${candidateName}.
+  const systemPrompt = `You are a professional talent profiler creating comprehensive, detailed documents for employer review. Your documents must be THOROUGH and LONG — minimum 3000 words. Every section must have substantial content with specific details, metrics, dates, and citations. Never write brief or generic content. Expand on every point with context and significance.`;
 
-This document will be attached to their professional profile visible to employers. It must be thorough, professional, and evidence-based.
+  const prompt = `Generate a COMPREHENSIVE and DETAILED Talent Profile Summary for ${candidateName}.
+
+CRITICAL: This document MUST be at least 3000-4000 words. Each section must have multiple detailed paragraphs. Do NOT write brief summaries — expand every point thoroughly.
 
 ## EXTRACTED PROFILE DATA:
 - Headline: ${structuredProfile.professionalHeadline || "Not available"}
@@ -58,62 +60,109 @@ ${structuredProfile.memberships?.map((m) => `- ${m}`).join("\n") || "None extrac
 ## RESEARCH CONTEXT:
 Profile Analysis: ${profileAnalysis.levelDescriptor} ${profileAnalysis.role} in ${profileAnalysis.domain}
 Total Sources Found: ${discoveredSources.length} (Tier 1: ${research.tier1Count}, Tier 2: ${research.tier2Count}, Tier 3: ${research.tier3Count})
+Primary Criteria: ${profileAnalysis.primaryCriteria?.join(", ") || "Not determined"}
+Research Strategy: ${profileAnalysis.researchStrategy || "Comprehensive"}
 
-## SOURCE CONTENT:
+## ALL DISCOVERED SOURCES:
+${sourceList}
+
+## SOURCE CONTENT (from fetched web pages):
 ${topContent}
 
 ---
 
-## GENERATE THE DOCUMENT:
-
-Create a professional, comprehensive talent profile document in Markdown format with these sections:
+## DOCUMENT STRUCTURE — WRITE ALL SECTIONS IN FULL DETAIL:
 
 # ${candidateName} — Professional Profile
 
 ## Executive Summary
-(2-3 paragraphs: Who is this person? What makes them extraordinary? Why should an employer be interested?)
+Write 3-4 detailed paragraphs covering:
+- Who this person is and their professional identity
+- What makes them extraordinary and distinguished in their field
+- Their most significant achievements and impact
+- Why an employer should be interested in this candidate
+- Their career trajectory and current standing
 
-## Professional Background
-(Detailed career trajectory, current role, significant positions held)
+## Professional Background & Career Trajectory
+Write 3-4 paragraphs covering:
+- Complete career history with dates, companies, and roles
+- Progression from early career to current position
+- Key transitions and growth milestones
+- Industry context for their roles and organizations
+- What distinguishes them from peers at similar career stages
 
 ## Key Achievements & Impact
-(Numbered list of most impressive accomplishments with specific details, metrics, and dates where available)
+Create a detailed numbered list (8-15 items) with:
+- Specific achievement description with metrics and dates
+- Context for why this achievement is significant
+- Impact and outcomes (revenue, users, citations, rankings, etc.)
+- Organizations involved and their prestige
 
-## Awards & Recognition
-(All awards, honors, fellowships, rankings with dates and granting organizations)
+## Awards, Honors & Recognition
+For each award/honor, write 2-3 sentences covering:
+- Award name, year, granting organization
+- Selection criteria and competitiveness
+- Significance within the field
 
-## Publications & Research
-(Publications, conference papers, patents — with titles, venues, dates, citation counts if known)
+## Publications, Research & Intellectual Contributions
+For each publication, include:
+- Full title, journal/venue, year
+- Citation count or impact metrics if available
+- Brief description of the contribution
+- Co-authors and their significance
 
 ## Media Coverage & Press
-(Articles, interviews, profiles about this person — with publication name, date, and brief description)
+For each media mention, include:
+- Publication name (with tier: Major Media, Trade, etc.)
+- Article title and date
+- Brief description of the coverage
+- Why this coverage matters
 
-## Professional Memberships & Leadership
-(Associations, boards, committees, advisory roles)
+## Professional Memberships & Leadership Roles
+For each membership/role:
+- Organization name and its prestige
+- Role or membership level
+- Selection criteria (what it takes to be admitted)
+- Duration of membership
 
-## Skills & Expertise
-(Technical and domain-specific competencies)
+## Technical Skills & Domain Expertise
+Organize skills into categories:
+- Core technical skills
+- Domain-specific expertise
+- Leadership and soft skills
+- Tools and technologies
 
 ## Education & Academic Credentials
-(Degrees, institutions, notable academic achievements)
+For each degree/credential:
+- Institution name and its ranking/prestige
+- Degree and field of study
+- Year of completion
+- Notable academic achievements
 
 ## Source References
-(List all sources used, organized by tier)
+List all sources organized by tier:
+### Tier 1 (Major Media & Authoritative Sources)
+### Tier 2 (Trade Publications & Industry Sources)
+### Tier 3 (Online & Supplementary Sources)
 
 ---
 
-WRITING GUIDELINES:
-1. Be factual and evidence-based — cite sources where possible
-2. Use professional, compelling language suitable for employer review
-3. Include specific numbers, dates, and metrics whenever available
-4. Highlight what makes this person EXTRAORDINARY in their field
-5. Write 5-8 pages of content (2000-4000 words)
-6. Use proper Markdown formatting with headers, bullet points, and emphasis
-7. Do NOT fabricate or assume information — only use what is in the provided data`;
+CRITICAL WRITING RULES:
+1. MINIMUM 3000 words — do NOT write less
+2. Be factual and evidence-based — cite sources with URLs where possible
+3. Use professional, compelling language suitable for employer review
+4. Include specific numbers, dates, metrics, and quantifiable achievements
+5. Highlight what makes this person EXTRAORDINARY in their field
+6. Every section must have substantial content — no one-liner sections
+7. If a section has limited data, write about the context and significance of what IS available
+8. Do NOT fabricate information — but DO elaborate on verified facts
+9. Use proper Markdown formatting: headers, bullet points, bold for emphasis, numbered lists`;
 
   const markdownContent = await callAI(prompt, {
+    systemPrompt,
     maxTokens: 16384,
-    temperature: 0.3,
+    temperature: 0.4,
+    quality: "quality",
   });
 
   return {
