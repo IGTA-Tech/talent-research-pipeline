@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .trigger/
-.env
-.env.local
 *.log
+config.bat
+temp_auto_push.bat
+temp_interactive_push.bat
